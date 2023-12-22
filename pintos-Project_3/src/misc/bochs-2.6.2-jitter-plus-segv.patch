@@ -1,7 +1,8 @@
-diff -ru bochs-2.6.11.dist/bochs.h bochs-2.6.11/bochs.h
---- bochs-2.6.11.dist/bochs.h	2019-12-19 23:42:07.299552000 -0800
-+++ bochs-2.6.11/bochs.h	2021-01-17 17:28:08.093933541 -0800
-@@ -409,6 +409,7 @@
+diff --git a/bochs.h b/bochs.h
+index c2d6c6b..d37cf12 100644
+--- a/bochs.h
++++ b/bochs.h
+@@ -392,6 +392,7 @@ BOCHSAPI extern logfunc_t *genlog;
  void bx_gdbstub_init(void);
  void bx_gdbstub_break(void);
  int bx_gdbstub_check(unsigned int eip);
@@ -9,18 +10,18 @@ diff -ru bochs-2.6.11.dist/bochs.h bochs-2.6.11/bochs.h
  #define GDBSTUB_STOP_NO_REASON   (0xac0)
  
  #if BX_SUPPORT_SMP
-@@ -664,4 +665,6 @@
- 
- #endif
+@@ -589,4 +590,6 @@ BX_CPP_INLINE Bit64u bx_bswap64(Bit64u val64)
+ #define CopyHostQWordLittleEndian(hostAddrDst,  hostAddrSrc) \
+     (* (Bit64u *)(hostAddrDst)) = (* (Bit64u *)(hostAddrSrc));
  
 +extern int jitter;
 +
  #endif  /* BX_BOCHS_H */
-Only in bochs-2.6.11: bochs.h.orig
-diff -ru bochs-2.6.11.dist/cpu/exception.cc bochs-2.6.11/cpu/exception.cc
---- bochs-2.6.11.dist/cpu/exception.cc	2019-12-26 08:48:33.074097000 -0800
-+++ bochs-2.6.11/cpu/exception.cc	2021-01-17 17:28:08.093933541 -0800
-@@ -991,6 +991,10 @@
+diff --git a/cpu/exception.cc b/cpu/exception.cc
+index db38d1b..b2c5f29 100644
+--- a/cpu/exception.cc
++++ b/cpu/exception.cc
+@@ -914,6 +914,10 @@ void BX_CPU_C::exception(unsigned vector, Bit16u error_code)
  
    BX_CPU_THIS_PTR last_exception_type = exception_type;
  
@@ -31,11 +32,11 @@ diff -ru bochs-2.6.11.dist/cpu/exception.cc bochs-2.6.11/cpu/exception.cc
    if (real_mode()) {
      push_error = 0; // not INT, no error code pushed
      error_code = 0;
-Only in bochs-2.6.11/cpu: exception.cc.orig
-diff -ru bochs-2.6.11.dist/gdbstub.cc bochs-2.6.11/gdbstub.cc
---- bochs-2.6.11.dist/gdbstub.cc	2017-03-06 13:30:05.467768000 -0800
-+++ bochs-2.6.11/gdbstub.cc	2021-01-17 17:28:35.270952903 -0800
-@@ -50,6 +50,7 @@
+diff --git a/gdbstub.cc b/gdbstub.cc
+index da600b4..577938d 100644
+--- a/gdbstub.cc
++++ b/gdbstub.cc
+@@ -49,6 +49,7 @@ static int last_stop_reason = GDBSTUB_STOP_NO_REASON;
  #define GDBSTUB_EXECUTION_BREAKPOINT    (0xac1)
  #define GDBSTUB_TRACE                   (0xac2)
  #define GDBSTUB_USER_BREAK              (0xac3)
@@ -43,20 +44,20 @@ diff -ru bochs-2.6.11.dist/gdbstub.cc bochs-2.6.11/gdbstub.cc
  
  static bx_list_c *gdbstub_list;
  static int listen_socket_fd;
-@@ -319,6 +320,12 @@
+@@ -317,6 +318,12 @@ int bx_gdbstub_check(unsigned int eip)
    return GDBSTUB_STOP_NO_REASON;
  }
  
-+void bx_gdbstub_exception(unsigned int nr)
++void bx_gdbstub_exception(unsigned int nr) 
 +{
 +    if (nr == 0x0e)
 +        last_stop_reason = GDBSTUB_EXCEPTION_0E;
 +}
 +
- static int remove_breakpoint(Bit64u addr, int len)
+ static int remove_breakpoint(unsigned addr, int len)
  {
    if (len != 1)
-@@ -489,6 +496,10 @@
+@@ -487,6 +494,10 @@ static void debug_loop(void)
          {
            write_signal(&buf[1], SIGTRAP);
          }
@@ -67,7 +68,7 @@ diff -ru bochs-2.6.11.dist/gdbstub.cc bochs-2.6.11/gdbstub.cc
          else
          {
            write_signal(&buf[1], 0);
-@@ -516,6 +527,10 @@
+@@ -514,6 +525,10 @@ static void debug_loop(void)
          {
            write_signal(&buf[1], SIGTRAP);
          }
@@ -78,11 +79,10 @@ diff -ru bochs-2.6.11.dist/gdbstub.cc bochs-2.6.11/gdbstub.cc
          else
          {
            write_signal(&buf[1], SIGTRAP);
-Only in bochs-2.6.11: gdbstub.cc.orig
-Only in bochs-2.6.11: gdbstub.cc~
-diff -ru bochs-2.6.11.dist/iodev/pit82c54.cc bochs-2.6.11/iodev/pit82c54.cc
---- bochs-2.6.11.dist/iodev/pit82c54.cc	2018-05-14 11:17:04.955283000 -0700
-+++ bochs-2.6.11/iodev/pit82c54.cc	2021-01-17 17:28:08.097266918 -0800
+diff --git a/iodev/pit82c54.cc b/iodev/pit82c54.cc
+index 09dcd8e..7e335d4 100644
+--- a/iodev/pit82c54.cc
++++ b/iodev/pit82c54.cc
 @@ -49,6 +49,7 @@
  
  #include "iodev.h"
@@ -91,7 +91,7 @@ diff -ru bochs-2.6.11.dist/iodev/pit82c54.cc bochs-2.6.11/iodev/pit82c54.cc
  #define LOG_THIS this->
  
  
-@@ -410,7 +411,14 @@
+@@ -410,7 +411,14 @@ void BX_CPP_AttrRegparmN(1) pit_82C54::clock(Bit8u cnum)
        case 2:
          if (thisctr.count_written) {
            if (thisctr.triggerGATE || thisctr.first_pass) {
@@ -107,18 +107,19 @@ diff -ru bochs-2.6.11.dist/iodev/pit82c54.cc bochs-2.6.11/iodev/pit82c54.cc
              thisctr.next_change_time=(thisctr.count_binary-1) & 0xFFFF;
              thisctr.null_count=0;
              if (thisctr.inlatch==1) {
-diff -ru bochs-2.6.11.dist/main.cc bochs-2.6.11/main.cc
---- bochs-2.6.11.dist/main.cc	2020-01-02 08:19:02.083668000 -0800
-+++ bochs-2.6.11/main.cc	2021-01-17 17:28:08.097266918 -0800
-@@ -94,6 +94,7 @@
+diff --git a/main.cc b/main.cc
+index 0f11e31..008f05f 100644
+--- a/main.cc
++++ b/main.cc
+@@ -101,6 +101,7 @@ BOCHSAPI BX_CPU_C bx_cpu;
  BOCHSAPI BX_MEM_C bx_mem;
  
  char *bochsrc_filename = NULL;
 +int jitter = 0;
  
- size_t bx_get_timestamp(char *buffer)
+ void bx_print_header()
  {
-@@ -705,6 +706,13 @@
+@@ -639,6 +640,13 @@ int bx_init_main(int argc, char *argv[])
        else SIM->get_param_string(BXPN_DEBUGGER_LOG_FILENAME)->set(argv[arg]);
      }
  #endif
@@ -132,4 +133,3 @@ diff -ru bochs-2.6.11.dist/main.cc bochs-2.6.11/main.cc
      else if (!strcmp("-f", argv[arg])) {
        if (++arg >= argc) BX_PANIC(("-f must be followed by a filename"));
        else bochsrc_filename = argv[arg];
-Only in bochs-2.6.11: main.cc.orig

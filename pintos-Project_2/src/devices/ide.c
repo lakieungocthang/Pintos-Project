@@ -124,7 +124,7 @@ ide_init (void)
           NOT_REACHED ();
         }
       lock_init (&c->lock);
-      c->expecting_interrupt = true;
+      c->expecting_interrupt = false;
       sema_init (&c->completion_wait, 0);
  
       /* Initialize devices. */

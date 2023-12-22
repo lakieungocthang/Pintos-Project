@@ -40,8 +40,7 @@ void cond_init (struct condition *);
 void cond_wait (struct condition *, struct lock *);
 void cond_signal (struct condition *, struct lock *);
 void cond_broadcast (struct condition *, struct lock *);
-bool cmp_sem_priority(const struct list_elem *,const struct list_elem *, void * UNUSED);
-bool cmp_donation_priority(const struct list_elem *,const struct list_elem *,void *UNUSED);
+
 /* Optimization barrier.
 
    The compiler will not reorder operations across an

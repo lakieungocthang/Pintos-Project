@@ -3,353 +3,265 @@
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
-#include <devices/shutdown.h>
-#include <threads/thread.h>
-#include <filesys/filesys.h>
-#include <filesys/file.h>
-#include <userprog/process.h>
-#include <devices/input.h>
-#include "vm/page.h"
+#include "threads/vaddr.h"
+#include "filesys/off_t.h"
 
 static void syscall_handler (struct intr_frame *);
+
+struct lock filesys_lock;
 
 void
 syscall_init (void) 
 {
+  lock_init(&filesys_lock);
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
 static void
-syscall_handler (struct intr_frame *f ) 
+syscall_handler (struct intr_frame *f UNUSED) 
 {
-  /* VALUE */	
-  int syscall_num;
-  int arg[5];
-  void *esp = f->esp;
-  /* VALUE */
-  check_address(esp, f->esp);
-  syscall_num = *(int *)esp;
-  switch(syscall_num)
-  {
-	  case SYS_HALT:
-		  halt();
-		  break;
-	  case SYS_EXIT:
-		  get_argument(esp,arg,1);
-		  exit(arg[0]);
-		  break;
-	  case SYS_EXEC:
-		  get_argument(esp,arg,1);
-		  check_valid_string((const void *)arg[0], f->esp);
-		  f->eax = exec((const char *)arg[0]);
-		  break;
-	  case SYS_WAIT:
-		  get_argument(esp,arg,1);
-		  f->eax = wait(arg[0]);
-		  break;
-	  case SYS_CREATE:
-		  get_argument(esp,arg,2);
-		  check_valid_string((const void *)arg[0], f->esp);
-		  f->eax = create((const char *)arg[0],(unsigned)arg[1]);
-		  break;
-	  case SYS_REMOVE:
-		  get_argument(esp,arg,1);
-		  check_valid_string((const void *)arg[0], f->esp);
-		  f->eax=remove((const char *)arg[0]);
-		  break;
-	  case SYS_OPEN:
-		  get_argument(esp,arg,1);
-		  check_valid_string((const void *)arg[0], f->esp);
-		  f->eax = open((const char *)arg[0]);
-		  break;
-	  case SYS_FILESIZE:
-		  get_argument(esp,arg,1);
-		  f->eax = filesize(arg[0]);
-		  break;
-	  case SYS_READ:
-		  get_argument(esp,arg,3);
-		  check_valid_buffer((void *)arg[1], (unsigned)arg[2], f->esp, true);
-		  f->eax = read(arg[0],(void *)arg[1],(unsigned)arg[2]);
-		  break;
-	  case SYS_WRITE:
-		  get_argument(esp,arg,3);
-		  check_valid_buffer((void *)arg[1], (unsigned)arg[2], f->esp, false);
-		  f->eax = write(arg[0],(void *)arg[1],(unsigned)arg[2]);
-		  break;
-	  case SYS_SEEK:
-		  get_argument(esp,arg,2);
-		  seek(arg[0],(unsigned)arg[1]);
-		  break;
-	  case SYS_TELL:
-		  get_argument(esp,arg,1);
-		  f->eax = tell(arg[0]);
-		  break;
-	  case SYS_CLOSE:
-		  get_argument(esp,arg,1);
-		  close(arg[0]);
-		  break;
-	  case SYS_MMAP:
-		  get_argument(esp,arg,2);
-		  break;
-	  case SYS_MUNMAP:
-		  get_argument(esp,arg,1);
-		  break;
+  // Switch based on the system call number.
+  switch (*(uint32_t *)(f->esp)) {
+    case SYS_HALT:
+      halt(); // System call to halt the system.
+      break;
+    case SYS_EXIT:
+      validate(f->esp + 4); // Validate the user pointer.
+      exit(*(uint32_t *)(f->esp + 4)); // System call to exit with a status.
+      break;
+    case SYS_EXEC:
+      validate(f->esp + 4); // Validate the user pointer.
+      f->eax = exec((const char *)*(uint32_t *)(f->esp + 4)); // System call to execute a process.
+      break;
+    case SYS_WAIT:
+      validate(f->esp + 4); // Validate the user pointer.
+      f->eax = wait((pid_t)*(uint32_t *)(f->esp + 4)); // System call to wait for a child process.
+      break;
+    case SYS_CREATE:
+      validate(f->esp + 4); // Validate the user pointer.
+      validate(f->esp + 8); // Validate the user pointer.
+      f->eax = create((const char *)*(uint32_t *)(f->esp + 4), (unsigned)*(uint32_t *)(f->esp + 8)); // System call to create a file.
+      break;
+    case SYS_REMOVE:
+      validate(f->esp + 4); // Validate the user pointer.
+      f->eax = remove((const char*)*(uint32_t *)(f->esp + 4)); // System call to remove a file.
+      break;
+    case SYS_OPEN:
+      validate(f->esp + 4); // Validate the user pointer.
+      f->eax = open((const char*)*(uint32_t *)(f->esp + 4)); // System call to open a file.
+      break;
+    case SYS_FILESIZE:
+      validate(f->esp + 4); // Validate the user pointer.
+      f->eax = filesize((int)*(uint32_t *)(f->esp + 4)); // System call to get the size of a file.
+      break;
+    case SYS_READ:
+      validate(f->esp + 4); // Validate the user pointer.
+      validate(f->esp + 8); // Validate the user pointer.
+      validate(f->esp + 12); // Validate the user pointer.
+      f->eax = read((int)*(uint32_t *)(f->esp+4), (void *)*(uint32_t *)(f->esp + 8), (unsigned)*((uint32_t *)(f->esp + 12))); // System call to read from a file.
+      break;
+    case SYS_WRITE:
+      f->eax = write((int)*(uint32_t *)(f->esp+4), (void *)*(uint32_t *)(f->esp + 8), (unsigned)*((uint32_t *)(f->esp + 12))); // System call to write to a file.
+      break;
+    case SYS_SEEK:
+      validate(f->esp + 4); // Validate the user pointer.
+      validate(f->esp + 8); // Validate the user pointer.
+      seek((int)*(uint32_t *)(f->esp + 4), (unsigned)*(uint32_t *)(f->esp + 8)); // System call to change the current position in a file.
+      break;
+    case SYS_TELL:
+      validate(f->esp + 4); // Validate the user pointer.
+      f->eax = tell((int)*(uint32_t *)(f->esp + 4)); // System call to get the current position in a file.
+      break;
+    case SYS_CLOSE:
+      validate(f->esp + 4); // Validate the user pointer.
+      close((int)*(uint32_t *)(f->esp + 4)); // System call to close a file.
+      break;
   }
-}
-/* chack_address function */
-void
-check_address(void *addr, void *esp)
-{
-	struct vm_entry *vme;
-	uint32_t address=(unsigned int)addr;
-	uint32_t lowest_address=0x8048000;
-	uint32_t highest_address=0xc0000000;
-	/* if address is user_address */
-	if(address >= lowest_address && address < highest_address)
-	{
-		/* find vm_entry if can't find vm_entry, exit the process */
-		vme = find_vme(addr);
-		/* if can't find vm_entry */
-		if(vme == NULL)
-		{
-			exit(-1);
-		}
-	}
-	else
-	{
-		exit(-1);
-	}
-}
-void check_valid_buffer(void *buffer, unsigned size, void *esp, bool to_write)
-{
-	struct vm_entry *vme;
-	unsigned i;
-	char *check_buffer = (char *)buffer;
-	/* check buffer */
-	for(i=0; i<size; i++)
-	{
-		check_address((void *)check_buffer, esp);
-		vme = find_vme((void *)check_buffer);
-		if(vme != NULL)
-		{
-			/* if to_write is true, vm_entry must writable.
-			   so if to_write is true but vm_entry is not writable
-			   exit the process. */
-			if(to_write == true)
-			{
-				if(vme->writable == false)
-					exit(-1);
-			}
-		}
-		check_buffer++;
-	}
-}
-void check_valid_string(const void *str, void *esp)
-{
-	char *check_str = (char *)str;
-	check_address((void *)check_str,esp);
-	/* check the all string's address */
-	while(*check_str != 0)
-	{
-		check_str += 1;
-		check_address(check_str, esp);
-	}
-}
-/* get_argument function */
-void
-get_argument(void *esp, int *arg, int count)
-{
-	int i;
-	void *stack_pointer=esp+4;
-	if(count > 0)
-	{
-		for(i=0; i<count; i++){
-			check_address(stack_pointer, esp);
-			arg[i] = *(int *)stack_pointer;
-			stack_pointer = stack_pointer + 4;
-		}
-	}
+  // printf ("system call!\n");
+  // thread_exit ();
 }
 
-/* exit pintos */
-void 
-halt(void)
+struct file
 {
-	shutdown_power_off();
-}
-/* exit process */
-void 
-exit(int status)
-{
-	struct thread *current_process=thread_current();
-	
-	current_process->process_exit_status = status;     
-	printf("%s: exit(%d)\n",current_process->name,status);
-	thread_exit();
-}
-/* wait child process */
-int
-wait(tid_t tid)
-{
-	int status;
-	status = process_wait(tid);
-	return status;
-}
-/* create file */
-bool
-create(const char *file, unsigned initial_size)
-{
-	bool result=false;
-	if(filesys_create(file,initial_size)==true)
-		result=true;
-	return result;
-}
-/* remove file */
-bool
-remove(const char *file)
-{
-	bool result = false;
-	if(filesys_remove(file)==true)
-		result = true;
-	return result;
-}
-/* create child process and wait until childprocess is loaded */
-tid_t
-exec(const char *cmd_name)
-{
-	struct thread *child_process;
-	tid_t pid;
-	
-	pid = process_execute(cmd_name);
-	child_process = get_child_process(pid);
-    /* wait child process */	
-	sema_down(&(child_process->load_semaphore));      
-	if(child_process->load_success==true)
-		return pid;
-	else
-	{
-		return -1;
-	}
-}
-/* open file and return fd */
-int
-open(const char *file)
-{
-	int fd;
-	struct file *new_file;
-	new_file=filesys_open(file);
+  struct inode *inode;   /* Pointer to the file's inode structure. */
+  off_t pos;             /* Current position within the file. */
+  bool deny_write;       /* Flag indicating if file_deny_write() has been called. */
+};
 
-	if(new_file != NULL)
-	{
-		fd = process_add_file(new_file);
-		return fd;
-	}
-	else
-	{
-		return -1;
-	}
+// Validates if a user virtual address is within the user space.
+static void validate(const void *vaddr) {
+    if (!is_user_vaddr(vaddr)) {
+        exit(-1);
+    }
 }
-/* return filesize */
-int
-filesize(int fd)
-{
-	int file_size;
-	struct file *current_file;
-	current_file = process_get_file(fd);
-	if(current_file != NULL)
-	{
-		file_size = file_length(current_file);
-		return file_size;
-	}
-	else
-	{
-		return -1;
-	}
+
+// Halts the system.
+void halt(void) {
+    shutdown_power_off();
 }
-/* read file */
-int 
-read(int fd, void *buffer, unsigned size)
-{
-	int read_size = 0;
-	struct file *current_file;
-	char *read_buffer = (char *)buffer;
+
+// Exits the current thread with a given status.
+void exit(int status) {
+    int i;
+
+    // Print exit message with thread name and status.
+    printf("%s: exit(%d)\n", thread_name(), status);
     
-	lock_acquire(&file_lock);
+    // Set exit status for the current thread.
+    thread_current()->exit_status = status;
 
-	if(fd == 0)              /* stdin */
-	{
-		read_buffer[read_size]=input_getc();
-		while(read_buffer[read_size] != '\n' && read_size < size)
-		{
-			read_size++;
-			read_buffer[read_size]=input_getc();
-		}
-		read_buffer[read_size]='\0';
-	}
-	else
-	{
-		current_file = process_get_file(fd);
-		if(current_file != NULL)
-		{
-			read_size = file_read(current_file,buffer,size);
-		}
-	}
-	lock_release(&file_lock);
-	return read_size;
-}
-/* write file */
-int
-write(int fd, void *buffer, unsigned size)
-{
-	int write_size = 0;
-	struct file *current_file;
+    // Close all open files for the current thread.
+    for (i = 3; i < 128; i++) {
+        if (thread_current()->fd[i] != NULL) {
+            close(i);
+        }
+    }
 
-	lock_acquire(&file_lock);
-	if(fd == 1)                    /* stdout */
-	{ 
-		putbuf((const char *)buffer,size);
-		write_size = size;
-	}
-	else
-	{
-		current_file = process_get_file(fd);
-		if(current_file != NULL)
-			write_size = file_write(current_file,(const void *)buffer,size);
-	}
-	lock_release(&file_lock);
-	return write_size;
+    // Exit the current thread.
+    thread_exit();
 }
-/* move file offset */
-void 
-seek(int fd, unsigned position)
-{
-	struct file *current_file;
-	current_file = process_get_file(fd);
-	
-	if(current_file != NULL)
-		file_seek(current_file,position);
-}
-/* return file offset */
-unsigned
-tell(int fd)
-{
-	struct file *current_file;
-	current_file = process_get_file(fd);
-	unsigned offset = 0;
 
-	if(current_file != NULL)
-		offset = file_tell(current_file);
-	return offset;
+// Executes a new process with the provided command line.
+pid_t exec(const char *cmd_line) {
+    return process_execute(cmd_line);
 }
-/* close file */
-void 
-close(int fd)
-{
-	struct file *current_file;
-	current_file = process_get_file(fd);
-	if(current_file != NULL)
-	{
-		file_close(current_file);
-		thread_current()->file_descriptor[fd]=NULL;
-	}
+
+// Waits for a child process with a given PID to terminate.
+int wait(pid_t pid) {
+    return process_wait(pid);
+}
+
+// Creates a new file with a given name and initial size.
+bool create(const char *file, unsigned initial_size) {
+    // Ensure file name is not NULL and is within valid user space.
+    if (file == NULL) {
+        exit(-1);
+    }
+    validate(file);
+
+    // Attempt to create the file using the file system.
+    return filesys_create(file, initial_size);
+}
+
+// Removes a file with a given name.
+bool remove(const char *file) {
+    // Ensure file name is not NULL and is within valid user space.
+    if (file == NULL) {
+        exit(-1);
+    }
+    validate(file);
+
+    // Attempt to remove the file using the file system.
+    return filesys_remove(file);
+}
+
+// Opens a file with a given name and returns its file descriptor.
+int open(const char *file) {
+    int i;
+    int ret = -1;
+    struct file *fp;
+
+    // Ensure file name is not NULL and is within valid user space.
+    if (file == NULL) {
+        exit(-1);
+    }
+    validate(file);
+
+    // Acquire file system lock to perform file operations.
+    lock_acquire(&filesys_lock);
+
+    // Attempt to open the file and deny write if the file has the same name as the current thread.
+    fp = filesys_open(file);
+    if (fp == NULL) {
+        ret = -1;
+    } else {
+        for (i = 3; i < 128; i++) {
+            if (thread_current()->fd[i] == NULL) {
+                if (strcmp(thread_current()->name, file) == 0) {
+                    file_deny_write(fp);
+                }
+                thread_current()->fd[i] = fp;
+                ret = i;
+                break;
+            }
+        }
+    }
+
+    // Release file system lock after completing file operations.
+    lock_release(&filesys_lock);
+    return ret;
+}
+
+// Returns the size of a file with a given file descriptor.
+int filesize(int fd) {
+    // Ensure file descriptor is valid.
+    if (thread_current()->fd[fd] == NULL) {
+        exit(-1);
+    }
+
+    // Return the length (size) of the file.
+    return file_length(thread_current()->fd[fd]);
+}
+
+// Reads data from a file into a buffer.
+int read(int fd, void *buffer, unsigned size) {
+    int i;
+    int ret;
+
+    // Validate buffer address.
+    validate(buffer);
+
+    // Acquire file system lock to perform file operations.
+    lock_acquire(&filesys_lock);
+
+    if (fd == 0) {
+        // Reads from the console (stdin).
+        for (i = 0; i < size; i++) {
+            if (((char *)buffer)[i] == '\0') {
+                break;
+            }
+        }
+        ret = i;
+    } else if (fd > 2) {
+        // Reads from a file.
+        if (thread_current()->fd[fd] == NULL) {
+            exit(-1);
+        }
+        ret = file_read(thread_current()->fd[fd], buffer, size);
+    }
+
+    // Release file system lock after completing file operations.
+    lock_release(&filesys_lock);
+    return ret;
+}
+
+// Writes data from a buffer to a file.
+int write(int fd, const void *buffer, unsigned size) {
+    int ret = -1;
+
+    // Validate buffer address.
+    validate(buffer);
+
+    // Acquire file system lock to perform file operations.
+    lock_acquire(&filesys_lock);
+
+    if (fd == 1) {
+        // Writes to the console (stdout).
+        putbuf(buffer, size);
+        ret = size;
+    } else if (fd > 2) {
+        // Writes to a file.
+        if (thread_current()->fd[fd] == NULL) {
+            lock_release(&filesys_lock);
+            exit(-1);
+        }
+        if (thread_current()->fd[fd]->deny_write) {
+            file_deny_write(thread_current()->fd[fd]);
+        }
+        ret = file_write(thread_current()->fd[fd], buffer, size);
+    }
+
+    // Release file system lock after completing file operations.
+    lock_release(&filesys_lock);
+    return ret;
 }

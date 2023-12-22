@@ -1,34 +1,48 @@
 #ifndef USERPROG_SYSCALL_H
 #define USERPROG_SYSCALL_H
-#include "threads/thread.h"
 
-#define STACK_HEURISTIC 32
+#include "lib/user/syscall.h"
 
-void syscall_init (void);
+// Initializes the system call interface.
+void syscall_init(void);
 
-/* add function */
-void check_address(void *addr, void *esp);
-void check_valid_buffer(void *buffer, unsigned size, void *esp, bool to_write);
-void check_valid_string(const void *str, void *esp);
-
-void get_argument(void *esp, int *arg, int count);
-
+// Shuts down the operating system.
 void halt(void);
-void exit(int status);
-bool create(const char *file, unsigned initial_size);
-bool remove(const char *file);
-tid_t exec(const char *cmd_name);
-int wait(tid_t tid);
-int open(const char *file);
-int filesize(int fd);
-int read(int fd, void *buffer, unsigned size);
-int write(int fd, void *buffer, unsigned size);
-void seek(int fd, unsigned position);
-unsigned tell(int fd);
-void close(int fd);
-int mmap(int fd, void *addr);
-void munmap(int mapping);
 
-/* */
+// Exits the current user program with a status code.
+void exit(int status);
+
+// Executes a new program.
+pid_t exec(const char *cmd_line);
+
+// Waits for a child process to terminate.
+int wait(pid_t pid);
+
+// Creates a new file.
+bool create(const char *file, unsigned initial_size);
+
+// Removes a file.
+bool remove(const char *file);
+
+// Opens a file.
+int open(const char *file);
+
+// Retrieves the size of a file.
+int filesize(int fd);
+
+// Reads data from a file.
+int read(int fd, void *buffer, unsigned size);
+
+// Writes data to a file.
+int write(int fd, const void *buffer, unsigned size);
+
+// Changes the next byte to be read or written in an open file.
+void seek(int fd, unsigned position);
+
+// Returns the position of the next byte to be read or written in an open file.
+unsigned tell(int fd);
+
+// Closes a file.
+void close(int fd);
 
 #endif /* userprog/syscall.h */

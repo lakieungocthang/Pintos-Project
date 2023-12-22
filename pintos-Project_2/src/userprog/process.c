@@ -60,11 +60,23 @@ tid_t process_execute(const char *file_name) {
   char *program_name = (char *)malloc(strlen(file_name) + 1);
   get_program_name(file_name, program_name);
 
+  if (filesys_open(program_name) == NULL) {
+    return -1;
+  }
+
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create(program_name, PRI_DEFAULT, start_process, fn_copy);
+  sema_down(&thread_current()->load_lock);
   if (tid == TID_ERROR)
     palloc_free_page(fn_copy);
 
+  for (e = list_begin(&thread_current()->child); e != list_end(&thread_current()->child); e = list_next(e)) {
+    t = list_entry(e, struct thread, child_elem);
+      if (t->exit_status == -1) {
+        return process_wait(tid);
+      }
+  }    
+  
   free(program_name);
 
   return tid;
@@ -111,17 +123,18 @@ static void start_process(void *file_name_) {
     token = strtok_r(NULL, " ", &save_ptr);
   }
 
+  sema_up(&thread_current()->parent->load_lock);
   /* If load failed, quit. */
   if (!success)
   {
     palloc_free_page(file_name);
-    thread_exit();
+    exit(-1);
   }
 
   // Project 2-2. Argument Passing - Set up stack
   construct_stack(argv, argc, &if_.esp);
 
-  hex_dump(if_.esp, if_.esp, PHYS_BASE - if_.esp, true); // Print memory dump in hexadecimal form
+  // hex_dump(if_.esp, if_.esp, PHYS_BASE - if_.esp, true); // Print memory dump in hexadecimal form
 
   palloc_free_page(file_name);
   free(program_name);
@@ -194,8 +207,20 @@ void construct_stack(char **arguments, int arg_count, void **stack_pointer) {
    does nothing. */
 int process_wait (tid_t child_tid)
 {
-  int i;
-  for (i = 0; i < 1000000000; i++);
+  struct list_elem* e;
+  struct thread* t = NULL;
+  int exit_status;
+
+  for (e = list_begin(&(thread_current()->child)); e != list_end(&(thread_current()->child)); e = list_next(e)) {
+    t = list_entry(e, struct thread, child_elem);
+    if (child_tid == t->tid) {
+      sema_down(&(t->child_lock));
+      exit_status = t->exit_status;
+      list_remove(&(t->child_elem));
+      sema_up(&(t->mem_lock)); /* new */
+      return exit_status;
+    }
+  }
   return -1;
 }
 
@@ -222,6 +247,8 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
+  sema_up(&(cur->child_lock));
+  sema_down(&(cur->mem_lock));
 }
 
 /* Sets up the CPU for running user code in the current

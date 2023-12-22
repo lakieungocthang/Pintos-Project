@@ -2,59 +2,50 @@
 #define VM_PAGE_H
 
 #include <hash.h>
+#include <list.h>
+#include "threads/thread.h"
+#include "threads/vaddr.h"
 
-#define VM_BIN 1 
-#define VM_FILE 2
-#define VM_ANON 3
-#define CLOSE_ALL 9999
+#define VM_BIN 0    /* Load data from a binary file */
+#define VM_FILE 1   /* Load data from a mapped file */
+#define VM_ANON 2   /* Load data from the swap area */
 
-/* 
-   Structure representing a virtual memory entry (vm_entry).
-   Each entry corresponds to a specific region in the virtual memory.
-*/
 struct vm_entry {
-    uint8_t type;                 // Type of the virtual memory entry (VM_BIN, VM_FILE, VM_ANON)
-    void *vaddr;                  // Virtual address of the entry
-    bool writable;                // Flag indicating if the entry is writable
-    bool is_loaded;               // Flag indicating if the physical memory is loaded for this entry
-    bool pinned;                  // Flag indicating if the entry is pinned in memory
-    struct file *file;            // File associated with the entry (for VM_FILE type)
-    struct list_elem mmap_elem;   // List element for mmap_file's vm_list
-    size_t offset;                // Offset within the file (for VM_FILE type)
-    size_t read_bytes;            // Number of bytes to read from the file
-    size_t zero_bytes;            // Number of zero-initialized bytes
-    size_t swap_slot;             // Swap slot for swapping pages in and out
-    struct hash_elem elem;        // Hash element for the thread's virtual memory hash table
+    uint8_t type;           /* Type: VM_BIN, VM_FILE, VM_ANON */
+    void *vaddr;            /* Virtual page number managed by vm_entry */
+    bool writable;          /* True if write is allowed at this address */
+    bool pinned;            /* True if the entry is pinned (not swappable) */
+    bool is_loaded;         /* Flag indicating whether the data is loaded in physical memory */
+    struct file *file;      /* File mapped to the virtual address */
+
+    /* For memory-mapped files (to be handled later) */
+    struct list_elem mmap_elem;   /* List element for mmap */
+
+    size_t offset;          /* Offset in the file to be read */
+    size_t read_bytes;      /* Size of data written to the virtual page */
+    size_t zero_bytes;      /* Remaining bytes to be zero-filled in the page */
+
+    /* For swapping (to be handled later) */
+    size_t swap_slot;       /* Swap slot */
+
+    /* Data structures for vm_entry (to be handled later) */
+    struct hash_elem elem;  /* Hash table element */
 };
 
-/*
-   Initialize the virtual memory manager.
-*/
+struct page {
+    void *kaddr;            /* Physical address of the page */
+    struct vm_entry *vme;   /* Pointer to the vm_entry representing the mapped virtual address */
+    struct thread *thread;  /* Pointer to the thread using this physical page */
+    struct list_elem lru;   /* List element for LRU list */
+};
+
 void vm_init(struct hash *vm);
-
-/*
-   Destroy the virtual memory manager.
-*/
-void vm_destroy(struct hash *vm);
-
-/*
-   Find a virtual memory entry based on a given virtual address.
-*/
-struct vm_entry *find_vme(void *vaddr);
-
-/*
-   Insert a virtual memory entry into the virtual memory manager.
-*/
 bool insert_vme(struct hash *vm, struct vm_entry *vme);
-
-/*
-   Delete a virtual memory entry from the virtual memory manager.
-*/
 bool delete_vme(struct hash *vm, struct vm_entry *vme);
 
-/*
-   Load the contents of a file into physical memory at a given kernel address.
-*/
+struct vm_entry *find_vme(void *vaddr);
+void vm_destroy(struct hash *vm);
+
 bool load_file(void *kaddr, struct vm_entry *vme);
 
-#endif
+#endif /* VM_PAGE_H */

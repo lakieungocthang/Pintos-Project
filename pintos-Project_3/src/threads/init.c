@@ -31,6 +31,8 @@
 #else
 #include "tests/threads/tests.h"
 #endif
+#include "vm/swap.h"
+#include "vm/file.h"
 #ifdef FILESYS
 #include "devices/block.h"
 #include "devices/ide.h"
@@ -114,7 +116,6 @@ main (void)
   exception_init ();
   syscall_init ();
 #endif
-
   /* Start thread scheduler and enable interrupts. */
   thread_start ();
   serial_init_queue ();
@@ -127,9 +128,13 @@ main (void)
   filesys_init (format_filesys);
 #endif
 
+#ifdef VM
+  swap_init();
+  lru_list_init();
+#endif
+
   printf ("Boot complete.\n");
-  /* file lock init*/
-  lock_init(&file_lock);
+  
   /* Run actions specified on kernel command line. */
   run_actions (argv);
 
